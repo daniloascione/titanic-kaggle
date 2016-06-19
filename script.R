@@ -21,10 +21,16 @@ all_data <- rbind(train, test)
 features <- all_data
 features$Fare[is.na(features$Fare)] <- median(features$Fare, na.rm=TRUE)
 features$Embarked[features$Embarked==""] = "S"
+features$Cabin[features$Cabin==""] = NA
+features$Cabin <- as.factor(features$Cabin)
+features$HasCabin <- !is.na(features$Cabin)
 features$Sex      <- as.factor(features$Sex)
 features$Embarked <- as.factor(features$Embarked)
 features$Family <- features$Parch + features$SibSp + 1
 features$Fare_pp <- features$Fare / features$Family
+
+md.pattern(features[, !names(features) %in% c("Survived", "Name", "PassengerId", "Ticket")])
+
 
 # How to fill in missing Age values?
 # We make a prediction of a passengers Age using the other variables and a decision tree model. 
@@ -33,18 +39,31 @@ library(rpart)
 library("rattle")
 library("rpart.plot")
 library("RColorBrewer")
-predicted_age <- rpart(Age ~ Pclass + Sex + SibSp + Parch,
-                       data = features[!is.na(features$Age),], method = "anova")
-fancyRpartPlot(predicted_age)
+#Use rpart to predict age
+# predicted_age <- rpart(Age ~ Pclass + Sex + SibSp + Parch + Fare + Fare_pp + HasCabin,
+#                        data = features[!is.na(features$Age),], method = "anova")
+# fancyRpartPlot(predicted_age)
+# features$Age[is.na(features$Age)] <- predict(predicted_age, features[is.na(features$Age),])
 
-features$Age[is.na(features$Age)] <- predict(predicted_age, features[is.na(features$Age),])
+#Use mice to predict age
+ageData <- mice(features[, !names(features) %in% c("Survived", "Name", "PassengerId", "Ticket", "Cabin")],
+                m=8,maxit=8,meth='pmm',seed=32737)
+
+features.imp <- data.frame(features$PassengerId, complete(ageData,1))
+
+ggplot(features,aes(x=Age)) + 
+  geom_density(data=features.imp, alpha = 0.2, fill = "blue")+
+  geom_density(data=features, alpha = 0.2, fill = "Red")+
+  labs(title="Age Distribution")+
+  labs(x="Age")
+
+features$Age <- features.imp$Age
 
 # Split the data back into a train set and a test set
 train <- features[1:891,]
 test <- features[892:1309,]
 
-
-rf <- randomForest(as.factor(Survived) ~ Pclass + Sex + Age + SibSp + Parch + Fare_pp + Family, data = train, 
+rf <- randomForest(as.factor(Survived) ~ Pclass + Sex + Age + SibSp + Parch + Fare_pp + Family + HasCabin, data = train, 
                    importance = TRUE, ntree = 1000)
 
 submission <- data.frame(PassengerId = test$PassengerId)
