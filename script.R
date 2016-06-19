@@ -63,9 +63,19 @@ features$Age <- features.imp$Age
 train <- features[1:891,]
 test <- features[892:1309,]
 
+#Split dataset
+trainIndex <- createDataPartition(train$PassengerId, p = 0.80, list = FALSE)
+train_cv <- train[-trainIndex, ]
+train <- train[trainIndex, ]
+
+#Train
 rf <- randomForest(as.factor(Survived) ~ Pclass + Sex + Age + SibSp + Parch + Fare_pp + Family + HasCabin, data = train, 
                    importance = TRUE, ntree = 1000)
+#Evaluate model
+predictions <- predict(rf, train_cv[,-which(names(train_cv) == "Survived")])
+confusionMatrix(predictions,  train_cv[,"Survived"])
 
+#Predict
 submission <- data.frame(PassengerId = test$PassengerId)
 submission$Survived <- predict(rf, test)
 write.csv(submission, file = "submission.csv", row.names=FALSE)
