@@ -75,6 +75,10 @@ rf <- randomForest(as.factor(Survived) ~ Pclass + Sex + Age + SibSp + Parch + Fa
 predictions <- predict(rf, train_cv[,-which(names(train_cv) == "Survived")])
 confusionMatrix(predictions,  train_cv[,"Survived"])
 
+library(pROC)
+f1 = roc(predictions ~ Survived, data=train_cv) 
+plot(f1, col="red")
+
 #Predict
 submission <- data.frame(PassengerId = test$PassengerId)
 submission$Survived <- predict(rf, test)
